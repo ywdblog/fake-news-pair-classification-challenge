@@ -207,6 +207,13 @@ plot_model(
     rankdir='LR')
 
 # summary 函数可以打印出模型的结构
+# Parameters: 代表模型中的参数数量 
+# - embedding层的参数 MAX_NUM_WORDS * NUM_EMBEDDING_DIM  10000 * 256 = 2560000   词汇表大小 * 词向量维度 
+# - lstm层的参数    
+# Output Shape：None表示任意值 
+# - embedding层的输出shape (None, 100, 256)  None表示任意值，100表示每个新闻标题的最大长度，256表示词向量的维度
+# - lstm层的输出shape (None, 128)  None表示任意值，128表示LSTM输出的向量维度
+# - dense层的输出shape (None, 3)  None表示任意值，3表示分类数量
 model.summary()
 
 # 编译模型
@@ -232,6 +239,32 @@ if env == 'fit':
         ),
         shuffle=True
     )
+
+    # 画出训练过程中的损失函数和准确率曲线
+    import matplotlib.pyplot as plt
+    loss = history.history["loss"]
+    val_loss = history.history["val_loss"]
+    epochs = range(1, len(loss) + 1)
+    plt.plot(epochs, loss, "bo", label="Training loss")
+    plt.plot(epochs, val_loss, "b", label="Validation loss")
+    plt.title("Training and validation loss")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.show()
+
+    # 画出训练过程中的损失函数和准确率曲线
+    plt.clf()
+    acc = history.history["accuracy"]
+    val_acc = history.history["val_accuracy"]
+    plt.plot(epochs, acc, "bo", label="Training accuracy")
+    plt.plot(epochs, val_acc, "b", label="Validation accuracy")
+    plt.title("Training and validation accuracy")
+    plt.xlabel("Epochs")
+    plt.ylabel("Accuracy")
+    plt.legend()
+    plt.show()
+
     model.save(MODEL_PATH)
 
     print("Training Finished")
