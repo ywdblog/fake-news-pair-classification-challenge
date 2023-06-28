@@ -36,7 +36,11 @@ TRAIN_CSV_PATH = "train-small.csv"
 TEST_CSV_PATH = "test-small.csv"
 MODEL_PATH = "model.h5"
 
- 
+# 在语料库有多少个词条
+MAX_NUM_WORDS = 10000
+# 一个标题最长有多少个词条
+MAX_SEQUENCE_LENGTH = 20
+
 label_to_index = {
     'unrelated': 0,
     'agreed': 1,
@@ -51,17 +55,13 @@ cols = ['title1_zh',
         'title2_zh', 
         'label']
 train = train.loc[:, cols]
-train.head(3)
-
 print(train.head(3))
  
 y_train = train.label.apply(lambda x: label_to_index[x])  # 将标签转换为数字
 y_train = numpy.asarray(y_train).astype('float32')
 y_train = tf.keras.utils.to_categorical(y_train)  # one-hot 编码
-print(y_train[:5])
-
-# 在语料库有多少个词条
-MAX_NUM_WORDS = 10000
+#print(y_train[:5])
+ 
 
 # keras集成功能：将文本切割为单词，并构建索引词典，最终将文本转换为序列
 tokenizer = tf.keras.preprocessing.text.Tokenizer(
@@ -78,16 +78,13 @@ corpus_x2 = train.title2_tokenized
 corpus = pd.concat([
     corpus_x1, corpus_x2])
  
-
 # corpus.iloc[:5] 选择corpus数据集中的前5行，而 ['title'] 将结果限制为只包含title列
-#print(pd.DataFrame(corpus.iloc[:5], columns=['title1_tokenized']))
-
+# print(pd.DataFrame(corpus.iloc[:5], columns=['title1_tokenized']))
+ 
 # 生成词汇表（word_index）词典的key是单词，value是单词的索引
 tokenizer.fit_on_texts(corpus)   
-print(corpus.shape)
-
-# 一个标题最长有多少个词条
-MAX_SEQUENCE_LENGTH = 20
+print(corpus.shape) #(4000,)
+ 
  
 # 将文本转换为序列
 x1_train = tokenizer.texts_to_sequences(corpus_x1)   
@@ -99,16 +96,14 @@ x1_train = tf.keras.preprocessing.sequence.pad_sequences(
 x2_train = tf.keras.preprocessing.sequence.pad_sequences(
     x2_train, maxlen=MAX_SEQUENCE_LENGTH)
 
-print(len(x1_train)) # 10000 
-print(x1_train[:1]) 
-print(x1_train[0]) #
-
+print(len(x1_train)) # 2000 
+print(x1_train[:1])   
+print(x1_train[0])  
+ 
 # 序列长度不一样
 for seq in x1_train[:10]:
     print(len(seq), seq[:5], ' ...')
 
-
- 
 # train_test_split 函数将数据集分为训练集和验证集
 VALIDATION_RATIO = 0.1 
 x1_train, x1_val, x2_train, x2_val, y_train, y_val = train_test_split(
@@ -146,7 +141,6 @@ for i, seq in enumerate(x1_train[:5]):
 # 如果能够把语料库（Corpus）里头的每个词汇都表示为一个有意义的向量，神经网络就能找到潜藏在大量词条中的语义关系，从而提升NLP精确度
 # 大部分情况下，不需要手动设置词汇的词向量，完全可以随机初始化词向量，然后利用反向传播算法自动学到NLP中的词向量，这种技术也叫词嵌入（word embedding）
 
-
 # 一个词向量的维度
 NUM_EMBEDDING_DIM = 256
 # LSTM 输出的向量维度
@@ -167,6 +161,8 @@ bm_input = Input(
 # 经过 Embedding 层的转换，两个新闻标题都变成了一个词向量的序列，而每个词向量的维度为 256
 embedding_layer = Embedding(
     MAX_NUM_WORDS, NUM_EMBEDDING_DIM)
+
+# top_input和bm_input是输入数据的占位符或变量名，用于接收输入的文本或序列数据
 top_embedded = embedding_layer(
     top_input)
 bm_embedded = embedding_layer(
@@ -174,7 +170,7 @@ bm_embedded = embedding_layer(
 # 有了Embedding词向量，就可以将其丢给LSTM 层，有了两个标题党词向量，接下去就是处理神经网络架构
 
 # LSTM 层
-# 两个新闻标题经过此层后，为一个 128 维度向量
+# 两个新闻标题经过此层后，变为一个 128 维度向量
 # A与B标题共享一个LSTM
 shared_lstm = LSTM(NUM_LSTM_UNITS)
 top_output = shared_lstm(top_embedded)
@@ -186,19 +182,36 @@ merged = concatenate(
     axis=-1)
 
 # Dense 函数为全连接层，搭配 Softmax Activation 可以返回3个成对标题属于各类别的可能概率
+# Softmax 函数将一个K维的实数向量转换为一个K维的实数概率向量，使得向量中的每个元素都处于0到1之间，并且所有元素的和为1
 dense = Dense(
     units=NUM_CLASSES,
     activation='softmax')
-predictions = dense(merged)
 
-# Softmax 函数将一个K维的实数向量转换为一个K维的实数概率向量，使得向量中的每个元素都处于0到1之间，并且所有元素的和为1
+predictions = dense(merged)
 
 # 模型就是将数字序列的输入，转换成 3 个分类的机率的所有步骤/层的总和
 model = Model(
     inputs=[top_input, bm_input],
     outputs=predictions)
 
-# 画出模型结构图
+## 画出模型结构图 shape
+
+# InputLayer ：
+#   Input：(None, 20) 20表示每个新闻标题的最大长度 None表示任意批次大小
+#   Output：(None, 20) 20表示标题的数字序列
+# Embedding：
+#   Input：(None, 20) 20表示标题的数字序列
+#   Output：(None, 20, 256) 20表示标题的数字序列，256表示词向量的维度
+# LSTM：
+#   Input：(None, 20, 256) 20表示标题的数字序列，256表示词向量的维度
+#   Output：(None, 128) 128表示LSTM输出的向量维度
+# Concatenate：
+#   Input：(None, 128) 128表示LSTM输出的向量维度
+#   Output：(None, 256) 256表示LSTM输出的向量维度
+# Dense：
+#   Input：(None, 256) 256表示LSTM输出的向量维度
+#   Output：(None, 3) 3表示分类数量
+
 plot_model(
     model,
     to_file='model.png',
@@ -206,23 +219,27 @@ plot_model(
     show_layer_names=False,
     rankdir='LR')
 
-# summary 函数可以打印出模型的结构
-# Parameters: 代表模型中的参数数量 
-# - embedding层的参数 MAX_NUM_WORDS * NUM_EMBEDDING_DIM  10000 * 256 = 2560000   词汇表大小 * 词向量维度 
-# - lstm层的参数    
-# Output Shape：None表示任意值 
-# - embedding层的输出shape (None, 100, 256)  None表示任意值，100表示每个新闻标题的最大长度，256表示词向量的维度
-# - lstm层的输出shape (None, 128)  None表示任意值，128表示LSTM输出的向量维度
-# - dense层的输出shape (None, 3)  None表示任意值，3表示分类数量
+## 参数大小
+# input_1 (InputLayer)         (None, 20)                0
+# input_2 (InputLayer)         (None, 20)                0
+# embedding_1 (Embedding)      (None, 20, 256)           2560000
+# lstm_1 (LSTM)                (None, 128)               197120 => 256 * 4 * 128 + 128 * 128 * 4 + 128 * 4 , 4 = 4个门, 128 = LSTM输出的向量维度, 256 = 词向量的维度, 128 = LSTM输出的向量维度, 128 = LSTM输出的向量维度, 4 = 4个门
+# concatenate_1 (Concatenate)  (None, 256)               0
+# dense_1 (Dense)              (None, 3)                 771=> 256 * 3 + 3,256 = LSTM输出的向量维度, 3 = 分类数量，+3是偏置项
 model.summary()
 
 # 编译模型
 model.compile(
+    # 优化器 梯度下降算法 更新参数 learning rate
     optimizer='rmsprop',
+    # 损失函数
     loss='categorical_crossentropy',
+    # 评估指标
     metrics=['accuracy'])
 
+# 每次训练的数据量
 BATCH_SIZE = 512
+# 训练轮数 10次
 NUM_EPOCHS = 10
 
 if env == 'fit':
@@ -231,19 +248,20 @@ if env == 'fit':
     history = model.fit(
         x=[x1_train, x2_train],
         y=y_train,
-        batch_size=BATCH_SIZE,
+        batch_size=BATCH_SIZE, 
         epochs=NUM_EPOCHS,
         validation_data=(
             [x1_val, x2_val],
             y_val
         ),
+        # 每个epoch，打乱数据，增加泛化能力
         shuffle=True
     )
 
-    # 画出训练过程中的损失函数和准确率曲线
+    # 画出训练过程中的损失函数曲线
     import matplotlib.pyplot as plt
     loss = history.history["loss"]
-    val_loss = history.history["val_loss"]
+    val_loss = history.history["val_loss"] # 验证集损失
     epochs = range(1, len(loss) + 1)
     plt.plot(epochs, loss, "bo", label="Training loss")
     plt.plot(epochs, val_loss, "b", label="Validation loss")
@@ -253,7 +271,7 @@ if env == 'fit':
     plt.legend()
     plt.show()
 
-    # 画出训练过程中的损失函数和准确率曲线
+    # 画出训练过程中的准确率曲线
     plt.clf()
     acc = history.history["accuracy"]
     val_acc = history.history["val_accuracy"]
@@ -300,13 +318,11 @@ else :
 # 预测结果
 print(predictions[:5])
 
+# 上传到 Kaggle
 index_to_label = {v: k for k, v in label_to_index.items()}
-
 test['Category'] = [index_to_label[idx] for idx in numpy.argmax(predictions, axis=1)]
-
 submission = test \
     .loc[:, ['Category']] \
     .reset_index()
-
 submission.columns = ['Id', 'Category']
 submission.head()
